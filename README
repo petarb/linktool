@@ -1,0 +1,94 @@
+Currently, bridged interfaces of VirtualBox guests won't adapt any link
+changes of their bridged counterparts.  There exists a "cable connected"
+checkbox in the guest settings but manually setting or unsetting it is
+not very practical if you need to roam often and would like your VM to
+pick up the change automatically.
+
+linktool is a small set of simple utilities that can make that process
+transparent.  It relies on scutil(8) and will therefore only run on OSX
+but that could easily be adjusted in future.
+
+In order to use linktool, copy linktool.sh somewhere (you may omit the
+suffix), make it executable, add the following line to your rc.local
+
+    # linktool, absolute paths only
+    /path/to/linktool setup /path/to/VirtualBox.app
+
+and reboot the machine.  All VMs that contain bridged interfaces should
+now automagically adapt any link changes on their next start.
+
+Note that setup will replace VirtualBoxVM (a hard link within the
+VirtualBox app directory) with a two-line shell wrapper and since VB
+startup scripts will recreate VirtualBoxVM on each reboot, setup needs
+to run on each reboot too.  On the other hand, this makes uninstalling
+linktool as easy as removing one line from rc.local.
+
+
+Additional information:
+
+linktool consists of several helpers that do a smaller part of the whole
+job mentioned in the introduction:
+
+    $ linktool
+    usage:
+    linktool watch host-if [host-if..]
+    linktool map guest host-if:guest-if[:guest-if..] [host-if:guest-if[:guest-if..]..]
+    linktool mapper guest
+    linktool wrapper --startvm guest
+    linktool seesaw master-host-if slave-host-if
+    linktool setup vbox-dir vbox-cmd
+
+    guest      : name or UUID of any VM
+    host-if    : host interface (see ifconfig)
+    guest-if   : guest interface (integer, 1-8)
+    vbox-dir   : path to VirtualBox.app directory
+    vbox-cmd   : name of VirtualBox command
+
+linkwatch uses scutil(8) and watches host interfaces:
+
+    $ linktool watch en0 en1
+    en0:on		# initial output
+    en1:off		# initial output
+    en1:on		# link status of en1 changed
+    (...)
+
+linkmap maps host interfaces to guest interfaces:
+
+    $ linktool map "My Virtual Machine" en0:1:2
+    Mapping link status (on): localhost/en0 -> My Virtual Machine/nic1
+    Mapping link status (on): localhost/en0 -> My Virtual Machine/nic2
+
+linkmapper maps all bridged interfaces of a guest.  Its output looks
+similar to the output above.
+
+linkwrapper is a wrapper around linkmapper and tries to act like
+VirtualBoxVM i.e. it understands the --startvm flag.
+
+linksetup replaces VirtualBoxVM with a plain-text hook that starts
+linkwrapper first followed by VirtualBoxVM-$(uname -m).  It needs to
+run on every boot since VirtualBoxStartup.sh will otherwise persist
+(and remove/relink VirtualBoxVM).
+
+linkseesaw doesn't have much to do with linktool or VirtualBox.  It
+reuses linkwatch, downs the slave interface if the master interface is
+up and vice versa.
+
+
+Issues:
+
+    * VBoxHeadless is not supported (shouldn't be hard to add)
+
+    * Switching link status doesn't work well with all virtual
+      network devices.  e1000 is the most reliable choice,  while
+      virtio-net mostly works although it sometimes gets stuck
+      in a state that is only recoverable by unloading and loading
+      the module (on Linux guests).  In that state, showvminfo
+      reports link status A while ethtool claims link status !A.
+
+    * Complicated bridging setups (two guest interfaces bridged with
+      one host interface for example) can be unreliable too.  If you
+      can't get any packets through but tcpdump happily reports arp
+      traffic.. simplify your setup.
+
+
+[Originally posted to vbox-dev@virtualbox.org on January 20, 2014]
