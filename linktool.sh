@@ -155,7 +155,7 @@ linkmap_getkey ()
 	local vm=$1
 	local key=$2
 
-	VBoxManage showvminfo "$vm" --machinereadable |
+	${VBOXMANAGE:-VBoxManage} showvminfo "$vm" --machinereadable |
 		awk '!val {
 			n = split($0, A, /'"$key"'="|"/)
 			if (n == 3 && !A[1] && !A[3]) {
@@ -210,7 +210,7 @@ linkmap_parse ()
 			echo "Mapping link status ($stat):" \
 				"$host/$int -> $vmname/nic$i"
 			for j in 3 4 5 6 7 8 9 10 11 12; do
-				VBoxManage controlvm "$vm" \
+				${VBOXMANAGE:-VBoxManage} controlvm "$vm" \
 					setlinkstate"$i" $stat && break
 				sleep $j
 			done
@@ -249,7 +249,7 @@ linkmapper_maps ()
 {
 	local vm=$1
 
-	VBoxManage showvminfo "$vm" --machinereadable |
+	${VBOXMANAGE:-VBoxManage} showvminfo "$vm" --machinereadable |
 		awk -v ints="$(ifconfig -l)" '
 		BEGIN {
 			n = split(ints, A, / /)
@@ -361,7 +361,7 @@ linksetup_rc ()
 
 	cat <<-EOF
 	#! /bin/sh
-	screen -d -m sh -c "sleep 3; '$0' wrapper \$* 2>&1 | logger -t '${0##*/}'"
+	screen -d -m sh -c "sleep 3; VBOXMANAGE='${cmd_arch%/*}/VBoxManage' '$0' wrapper \$* 2>&1 | logger -t '${0##*/}'"
 	exec '$cmd_arch' "\$@"
 	EOF
 }
